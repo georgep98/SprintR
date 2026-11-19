@@ -1,35 +1,85 @@
-import Link from "next/link";
-import { ShoppingBag, Search, User } from "lucide-react";
+import { Box, Container, Group } from "@mantine/core";
+import { LinkAnchor } from "@/components/ui/links";
+import { ProfileMenu, LoginIconLink } from "@/components/auth/ProfileMenu";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { getViewerIdentity } from "@/lib/auth/identity";
+import { getMyNotifications } from "@/lib/notifications/queries";
+import { CartProvider } from "@/components/cart/CartContext";
+import { CartBar } from "@/components/cart/CartBar";
+import { SearchProvider } from "@/components/search/SearchContext";
+import { HeaderSearch } from "@/components/search/HeaderSearch";
+import { Logo } from "@/components/ui/Logo";
+import { PageBackground } from "@/components/ui/PageBackground";
+import { SiteFooter } from "@/components/ui/SiteFooter";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
-export default function CustomerLayout({ children }: { children: React.ReactNode }) {
+export default async function CustomerLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const viewer = await getViewerIdentity();
+  const notifs = viewer ? await getMyNotifications() : { items: [], unread: 0 };
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/browse" className="text-2xl font-bold text-brand-600">
-            SprintR
-          </Link>
-          <div className="flex-1 max-w-md mx-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="search"
-                placeholder="Caută magazine sau servicii..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-            </div>
-          </div>
-          <nav className="flex items-center gap-4">
-            <Link href="/orders" className="relative">
-              <ShoppingBag className="w-6 h-6 text-gray-600 hover:text-brand-600" />
-            </Link>
-            <Link href="/profile">
-              <User className="w-6 h-6 text-gray-600 hover:text-brand-600" />
-            </Link>
-          </nav>
-        </div>
-      </header>
-      <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>
-    </div>
+    <CartProvider>
+      <SearchProvider>
+      <Box
+        mih="100vh"
+        bg="var(--mantine-color-body)"
+        style={{ display: "flex", flexDirection: "column", isolation: "isolate" }}
+      >
+        <PageBackground />
+        <Box
+          component="header"
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 50,
+            backdropFilter: "blur(14px)",
+            WebkitBackdropFilter: "blur(14px)",
+            // Sit below the notch / status bar when installed as a PWA (0 in a normal browser).
+            paddingTop: "env(safe-area-inset-top)",
+          }}
+        >
+          <Container size="lg" h={64}>
+            <Group h="100%" justify="space-between" wrap="nowrap">
+              <LinkAnchor href="/browse" underline="never" display="inline-flex">
+                <Logo />
+              </LinkAnchor>
+              <HeaderSearch />
+              <Group gap="sm" wrap="nowrap">
+                <ThemeToggle />
+                <CartBar />
+                {viewer ? (
+                  <>
+                    <NotificationBell
+                      userId={viewer.id}
+                      initialItems={notifs.items}
+                      initialUnread={notifs.unread}
+                    />
+                    <ProfileMenu
+                      name={viewer.name}
+                      email={viewer.email}
+                      avatarUrl={viewer.avatarUrl}
+                      hasShopRole={viewer.shops.length > 0}
+                    />
+                  </>
+                ) : (
+                  <LoginIconLink />
+                )}
+              </Group>
+            </Group>
+          </Container>
+        </Box>
+        {/* flex:1 pushes the footer to the viewport bottom on short pages (sticky footer). */}
+        <Box style={{ flex: 1 }}>
+          <Container size="lg" py="xl">
+            {children}
+          </Container>
+        </Box>
+        <SiteFooter />
+      </Box>
+      </SearchProvider>
+    </CartProvider>
   );
 }

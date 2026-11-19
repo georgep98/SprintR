@@ -1,0 +1,161 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Group, NavLink, Stack, Text } from "@mantine/core";
+import {
+  BarChart3,
+  LayoutDashboard,
+  LifeBuoy,
+  type LucideIcon,
+  MessageSquare,
+  Package,
+  ShoppingBag,
+  Star,
+  Store,
+  Tag,
+  Users,
+  Wrench,
+} from "lucide-react";
+import { useUnread } from "./UnreadProvider";
+
+type NavItem = { href: string; label: string; icon: LucideIcon };
+
+// Grouped into labelled sections so the nine destinations read as an organised menu
+// rather than one long flat list.
+const SECTIONS: { title: string; items: NavItem[] }[] = [
+  {
+    title: "Principal",
+    items: [
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/dashboard/analytics", label: "Statistici", icon: BarChart3 },
+      { href: "/dashboard/orders", label: "Comenzi", icon: ShoppingBag },
+      { href: "/dashboard/messages", label: "Mesaje", icon: MessageSquare },
+      { href: "/dashboard/reviews", label: "Recenzii", icon: Star },
+    ],
+  },
+  {
+    title: "Catalog",
+    items: [
+      { href: "/dashboard/products", label: "Produse", icon: Package },
+      { href: "/dashboard/services", label: "Servicii", icon: Wrench },
+      { href: "/dashboard/offers", label: "Oferte", icon: Tag },
+    ],
+  },
+  {
+    title: "Magazin",
+    items: [
+      { href: "/dashboard/members", label: "Echipă", icon: Users },
+      { href: "/dashboard/profile", label: "Magazin", icon: Store },
+      { href: "/support", label: "Suport", icon: LifeBuoy },
+    ],
+  },
+];
+
+const badgeText = (n: number) => (n > 9 ? "9+" : String(n));
+
+export function DashboardNav({
+  onNavigate,
+  pendingCount = 0,
+  inProgressCount = 0,
+}: {
+  onNavigate?: () => void;
+  pendingCount?: number;
+  inProgressCount?: number;
+}) {
+  const pathname = usePathname();
+  const { count } = useUnread();
+
+  return (
+    <Stack gap={2} px="sm" pb="md">
+      {SECTIONS.map((section, si) => (
+        <Stack gap={2} key={section.title}>
+          <Text
+            component="div"
+            tt="uppercase"
+            fz={10}
+            fw={700}
+            c="dimmed"
+            px="xs"
+            pt={si === 0 ? 4 : "md"}
+            pb={4}
+            style={{ letterSpacing: "0.07em" }}
+          >
+            {section.title}
+          </Text>
+          {section.items.map(({ href, label, icon: Icon }) => {
+            const active =
+              href === "/dashboard"
+                ? pathname === "/dashboard"
+                : pathname.startsWith(href);
+            const showUnread = href === "/dashboard/messages" && count > 0;
+            const isOrders = href === "/dashboard/orders";
+            let rightSection: React.ReactNode;
+            if (showUnread) {
+              rightSection = (
+                <Text fz="sm" fw={700} c="brand.7" aria-label="mesaje necitite">
+                  {badgeText(count)}
+                </Text>
+              );
+            } else if (isOrders && (pendingCount > 0 || inProgressCount > 0)) {
+              rightSection = (
+                <Group gap={8} wrap="nowrap">
+                  {pendingCount > 0 && (
+                    <Text
+                      fz="sm"
+                      fw={700}
+                      // Teal in light; light grey in dark so it stays visible on the dark sidebar.
+                      style={{
+                        color:
+                          "light-dark(var(--mantine-color-teal-7), var(--mantine-color-gray-4))",
+                      }}
+                      aria-label="comenzi noi"
+                    >
+                      {badgeText(pendingCount)}
+                    </Text>
+                  )}
+                  {inProgressCount > 0 && (
+                    <Text
+                      fz="sm"
+                      fw={600}
+                      style={{
+                        color:
+                          "light-dark(var(--mantine-color-teal-5), var(--mantine-color-gray-5))",
+                      }}
+                      aria-label="comenzi în lucru"
+                    >
+                      {badgeText(inProgressCount)}
+                    </Text>
+                  )}
+                </Group>
+              );
+            }
+            return (
+              <NavLink
+                key={href}
+                component={Link}
+                href={href}
+                label={label}
+                active={active}
+                color="brand"
+                variant="light"
+                onClick={onNavigate}
+                leftSection={<Icon size={18} />}
+                rightSection={rightSection}
+                styles={{
+                  root: { borderRadius: "var(--mantine-radius-md)" },
+                  // Tighter icon↔label gap; dim inactive icons so the active brand row pops.
+                  section: {
+                    marginInlineEnd: 10,
+                    color: active ? undefined : "var(--mantine-color-dimmed)",
+                  },
+                  label: { fontWeight: 600 },
+                }}
+              />
+            );
+          })}
+        </Stack>
+      ))}
+    </Stack>
+  );
+}

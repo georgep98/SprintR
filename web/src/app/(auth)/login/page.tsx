@@ -1,54 +1,50 @@
 import { Metadata } from "next";
-import Link from "next/link";
+import { Alert, Divider, Paper, Stack, Text, Title } from "@mantine/core";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { LinkAnchor } from "@/components/ui/links";
 
 export const metadata: Metadata = { title: "Autentificare" };
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string; error?: string }>;
+}) {
+  const { next, error } = await searchParams;
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Bun venit înapoi</h1>
-      <p className="text-gray-500 mb-8">Autentifică-te în contul tău SprintR</p>
-
-      <form className="space-y-4">
+    <Paper withBorder shadow="md" radius="lg" p="xl">
+      <Stack gap="lg">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Email
-          </label>
-          <input
-            type="email"
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-            placeholder="email@exemplu.com"
-          />
+          <Title order={1} fz={28} lh={1.15}>
+            Bun venit înapoi
+          </Title>
+          <Text c="dimmed" mt={6}>
+            Autentifică-te cu contul tău Google ca să-ți continui comenzile.
+          </Text>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Parolă
-          </label>
-          <input
-            type="password"
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-            placeholder="••••••••"
-          />
-        </div>
-        <div className="flex justify-end">
-          <Link href="/forgot-password" className="text-sm text-brand-600 hover:underline">
-            Ai uitat parola?
-          </Link>
-        </div>
-        <button
-          type="submit"
-          className="w-full py-3 bg-brand-500 text-white rounded-xl font-semibold hover:bg-brand-600 transition-colors"
-        >
-          Autentifică-te
-        </button>
-      </form>
 
-      <p className="mt-6 text-center text-sm text-gray-500">
-        Nu ai cont?{" "}
-        <Link href="/register" className="text-brand-600 font-medium hover:underline">
-          Înregistrează-te
-        </Link>
-      </p>
-    </div>
+        {error && (
+          <Alert color="red" variant="light" title="Autentificarea nu a reușit">
+            Te rugăm să încerci din nou. Dacă problema persistă, scrie-ne.
+          </Alert>
+        )}
+
+        <GoogleSignInButton label="Continuă cu Google" next={next} />
+
+        <Text ta="center" size="sm" c="dimmed">
+          Nu ai cont încă?{" "}
+          <LinkAnchor href="/register" fw={600} c="brand.6">
+            Creează unul
+          </LinkAnchor>
+        </Text>
+
+        <Divider />
+
+        <Text ta="center" size="xs" c="dimmed">
+          Prin autentificare ești de acord cu Termenii și Politica de
+          confidențialitate Sprintr.
+        </Text>
+      </Stack>
+    </Paper>
   );
 }

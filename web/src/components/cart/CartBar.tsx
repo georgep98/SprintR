@@ -1,0 +1,382 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useDisclosure } from "@mantine/hooks";
+import {
+  ActionIcon,
+  Alert,
+  Button,
+  Divider,
+  Drawer,
+  FileButton,
+  Group,
+  Indicator,
+  Paper,
+  Stack,
+  Text,
+  TextInput,
+  ThemeIcon,
+} from "@mantine/core";
+import {
+  ArrowRight,
+  Clock,
+  FileText,
+  Package,
+  ShoppingCart,
+  Trash2,
+  Upload,
+} from "lucide-react";
+import { toast } from "sonner";
+import { formatPrice, roCount } from "@/lib/utils/format";
+import { acceptAttr, acceptedLabel, fileAllowed } from "@/lib/catalog/fileTypes";
+import { createClient } from "@/lib/supabase/client";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { useCart } from "./CartContext";
+import { CheckoutModal } from "./CheckoutModal";
+
+export function CartBar() {
+  const {
+    lines,
+    count,
+    total,
+    discount,
+    payable,
+    freeShipping,
+    lineFinal,
+    shopOpen,
+    shopName,
+    removeLine,
+    attachFiles,
+    clear,
+    promoCode,
+    promoStatus,
+    promoOffer,
+    applyPromo,
+    clearPromo,
+  } = useCart();
+  const router = useRouter();
+  const [drawerOpened, { open: openDrawer, close: closeDrawer }] = useDisclosure(false);
+  const [checkoutOpened, { open: openCheckout, close: closeCheckout }] = useDisclosure(false);
+  const [authChecking, setAuthChecking] = useState(false);
+
+  // Gate checkout on auth: a logged-out customer is sent to /login (returning here after,
+  // with the cart intact via localStorage) instead of opening the checkout modal.
+  async function startCheckout() {
+    setAuthChecking(true);
+    try {
+      const { data } = await createClient().auth.getUser();
+      closeDrawer();
+      if (!data.user) {
+        const next = window.location.pathname + window.location.search;
+        router.push(`/login?next=${encodeURIComponent(next)}`);
+        return;
+      }
+      openCheckout();
+    } finally {
+      setAuthChecking(false);
+    }
+  }
+  // Local promo input (seeded from the applied code; cleared when the cart's shop changes).
+  const [promoInput, setPromoInput] = useState(promoCode);
+  useEffect(() => {
+    if (!promoCode) setPromoInput("");
+  }, [promoCode]);
+
+  // A required-upload line whose file went missing (e.g. stripped on reload — File objects can't
+  // persist). Block checkout until it's re-attached, with an inline file picker per affected line.
+  const needsFile = (l: (typeof lines)[number]) =>
+    Boolean(l.requiresUpload) && !(l.files?.length);
+  const anyMissingFile = lines.some(needsFile);
+
+  // Quick "pop" of the cart pill whenever the item count grows — tactile feedback on add.
+  const [bump, setBump] = useState(false);
+  const prevCount = useRef(count);
+  useEffect(() => {
+    if (count > prevCount.current) {
+      setBump(true);
+      const t = setTimeout(() => setBump(false), 220);
+      prevCount.current = count;
+      return () => clearTimeout(t);
+    }
+    prevCount.current = count;
+  }, [count]);
+
+  return (
+    <>
+      <CheckoutModal opened={checkoutOpened} onClose={closeCheckout} />
+
+      <Indicator
+        label={count}
+        size={18}
+        disabled={count === 0}
+        color="brand"
+        style={{
+          transition: "transform 180ms ease",
+          transform: bump ? "scale(1.18)" : "scale(1)",
+        }}
+      >
+        <Button
+          variant="subtle"
+          color="gray"
+          leftSection={<ShoppingCart size={18} />}
+          onClick={openDrawer}
+        >
+          {formatPrice(payable)}
+        </Button>
+      </Indicator>
+
+      <Drawer
+        opened={drawerOpened}
+        onClose={closeDrawer}
+        position="right"
+        size="md"
+        padding="lg"
+        title={
+          <div>
+            <Text fw={800} fz="lg" c="var(--mantine-color-text)">
+              Coșul tău
+            </Text>
+            {count > 0 && (
+              <Text fz="sm" c="dimmed">
+                {roCount(count, "produs", "produse")}
+              </Text>
+            )}
+          </div>
+        }
+        styles={{
+          // Solid surface — the drawer was reading semi-transparent over the page.
+          content: { backgroundColor: "light-dark(#ffffff, var(--mantine-color-dark-7))" },
+          header: {
+            alignItems: "flex-start",
+            backgroundColor: "light-dark(#ffffff, var(--mantine-color-dark-7))",
+          },
+        }}
+      >
+        {lines.length === 0 ? (
+          <EmptyState
+            icon={<ShoppingCart size={26} />}
+            title="Coșul este gol"
+            description="Adaugă produse sau servicii dintr-un magazin ca să începi o comandă."
+          />
+        ) : (
+          <Stack gap="md">
+            <Stack gap="sm">
+              {lines.map((l) => {
+                const Icon = l.kind === "service" ? FileText : Package;
+                const finalTotal = lineFinal(l.lineId);
+                const discounted = finalTotal < l.total - 0.001;
+                const missing = needsFile(l);
+                return (
+                  <Paper key={l.lineId} withBorder radius="md" p="sm">
+                    <Group justify="space-between" wrap="nowrap" align="flex-start">
+                      <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+                        <ThemeIcon variant="light" color="mist" size={40} radius="md">
+                          <Icon size={18} />
+                        </ThemeIcon>
+                        <div style={{ minWidth: 0 }}>
+                          <Text fw={600} fz="sm" truncate>
+                            {l.title}
+                          </Text>
+                          <Text
+                            fz="xs"
+                            c={missing ? "orange" : "dimmed"}
+                            fw={missing ? 600 : undefined}
+                            truncate
+                          >
+                            {missing
+                              ? "Necesită un fișier atașat"
+                              : `${(l.quantity ?? 1) > 1 ? `${l.quantity} × ` : ""}${
+                                  l.files?.length
+                                    ? l.files.length === 1
+                                      ? l.files[0].name
+                                      : `${l.files.length} fișiere`
+                                    : l.kind === "service"
+                                      ? "Serviciu"
+                                      : "Produs"
+                                }`}
+                          </Text>
+                        </div>
+                      </Group>
+                      <Group gap={4} wrap="nowrap">
+                        <div style={{ textAlign: "right" }}>
+                          {discounted && (
+                            <Text fz="xs" c="dimmed" td="line-through" style={{ whiteSpace: "nowrap" }}>
+                              {formatPrice(l.total)}
+                            </Text>
+                          )}
+                          <Text
+                            fw={700}
+                            fz="sm"
+                            c={discounted ? "brand" : undefined}
+                            style={{ whiteSpace: "nowrap" }}
+                          >
+                            {formatPrice(finalTotal)}
+                          </Text>
+                        </div>
+                        <ActionIcon
+                          variant="subtle"
+                          color="red"
+                          onClick={() => removeLine(l.lineId)}
+                          aria-label="Elimină"
+                        >
+                          <Trash2 size={16} />
+                        </ActionIcon>
+                      </Group>
+                    </Group>
+                    {missing && (
+                      <FileButton
+                        accept={l.acceptedFileTypes?.length ? acceptAttr(l.acceptedFileTypes) : undefined}
+                        onChange={(f) => {
+                          if (!f) return;
+                          // Enforce the shop's allowed types on basket re-attach (the file picker's
+                          // `accept` is only a hint — a determined user can still pick anything).
+                          if (l.acceptedFileTypes?.length && !fileAllowed(f, l.acceptedFileTypes)) {
+                            toast.error(
+                              `Tip de fișier neacceptat. Permise: ${acceptedLabel(l.acceptedFileTypes)}.`,
+                            );
+                            return;
+                          }
+                          attachFiles(l.lineId, [f]);
+                        }}
+                      >
+                        {(props) => (
+                          <Button
+                            {...props}
+                            size="compact-sm"
+                            variant="light"
+                            color="orange"
+                            leftSection={<Upload size={14} />}
+                            mt="xs"
+                          >
+                            Atașează fișierul
+                          </Button>
+                        )}
+                      </FileButton>
+                    )}
+                  </Paper>
+                );
+              })}
+            </Stack>
+
+            {/* Promo code — validated against the shop; persists into the checkout modal. */}
+            <Paper withBorder radius="md" p="md" bg="var(--mantine-color-body)">
+              <Text fz="sm" fw={600} mb="xs">
+                Cod promoțional
+              </Text>
+              <Group gap="xs" wrap="nowrap" align="flex-start">
+                <TextInput
+                  placeholder="ex. STUDENT10"
+                  value={promoInput}
+                  onChange={(e) => setPromoInput(e.currentTarget.value.toUpperCase())}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && promoInput.trim()) void applyPromo(promoInput);
+                  }}
+                  disabled={promoStatus === "valid"}
+                  error={promoStatus === "invalid" ? "Codul nu există sau a expirat" : undefined}
+                  style={{ flex: 1 }}
+                />
+                {promoStatus === "valid" ? (
+                  <Button
+                    variant="light"
+                    color="gray"
+                    onClick={() => {
+                      clearPromo();
+                      setPromoInput("");
+                    }}
+                  >
+                    Elimină
+                  </Button>
+                ) : (
+                  <Button
+                    variant="light"
+                    loading={promoStatus === "checking"}
+                    disabled={!promoInput.trim()}
+                    onClick={() => void applyPromo(promoInput)}
+                  >
+                    Aplică
+                  </Button>
+                )}
+              </Group>
+              {promoStatus === "valid" && promoOffer && (
+                <Text fz="xs" c="brand" fw={600} mt={6}>
+                  Cod aplicat: {promoOffer.name}
+                </Text>
+              )}
+            </Paper>
+
+            {/* Summary */}
+            <Paper withBorder radius="md" p="md" bg="var(--mantine-color-body)">
+              <Group justify="space-between" mb={6}>
+                <Text fz="sm" c="dimmed">
+                  Subtotal
+                </Text>
+                <Text fz="sm">{formatPrice(total)}</Text>
+              </Group>
+              {discount > 0 && (
+                <Group justify="space-between" mb={6}>
+                  <Text fz="sm" c="brand" fw={600}>
+                    Reducere
+                  </Text>
+                  <Text fz="sm" c="brand" fw={600}>
+                    −{formatPrice(discount)}
+                  </Text>
+                </Group>
+              )}
+              <Group justify="space-between" mb="xs">
+                <Text fz="sm" c="dimmed">
+                  Livrare
+                </Text>
+                <Text fz="sm" c={freeShipping ? "brand" : "dimmed"} fw={freeShipping ? 600 : undefined}>
+                  {freeShipping ? "Gratuită" : "Calculată la finalizare"}
+                </Text>
+              </Group>
+              <Divider mb="xs" />
+              <Group justify="space-between">
+                <Text fw={700}>Total</Text>
+                <Text fw={800} fz="xl" c="var(--mantine-color-text)">
+                  {formatPrice(payable)}
+                </Text>
+              </Group>
+            </Paper>
+
+            {!shopOpen && (
+              <Alert
+                variant="light"
+                color="red"
+                icon={<Clock size={18} />}
+                title="Magazinul este închis"
+              >
+                {shopName ?? "Magazinul"} este închis acum. Poți păstra produsele
+                în coș și finaliza comanda când se redeschide.
+              </Alert>
+            )}
+            {anyMissingFile && (
+              <Alert variant="light" color="orange" icon={<Upload size={18} />} title="Fișier necesar">
+                Un produs din coș are nevoie de un fișier atașat — re-atașează-l mai sus pentru a
+                finaliza comanda. (Fișierele nu se păstrează după reîncărcarea paginii.)
+              </Alert>
+            )}
+            <Button
+              size="md"
+              fullWidth
+              rightSection={<ArrowRight size={16} />}
+              disabled={!shopOpen || anyMissingFile}
+              loading={authChecking}
+              onClick={() => void startCheckout()}
+            >
+              {!shopOpen
+                ? "Magazin închis"
+                : anyMissingFile
+                  ? "Atașează fișierul necesar"
+                  : "Finalizează comanda"}
+            </Button>
+            <Button variant="subtle" color="gray" fullWidth onClick={clear}>
+              Golește coșul
+            </Button>
+          </Stack>
+        )}
+      </Drawer>
+    </>
+  );
+}

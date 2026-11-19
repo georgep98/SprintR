@@ -1,19 +1,60 @@
 import { Metadata } from "next";
+import { Paper, Stack, Text, Title } from "@mantine/core";
+import { getShops } from "@/lib/catalog/shops";
+import { createClient } from "@/lib/supabase/server";
+import { ShopResults } from "@/components/shop/ShopResults";
+import { MobileShopSearch } from "@/components/search/MobileShopSearch";
+import { getMyFavoriteShopIds } from "@/lib/favorites/queries";
+import { roCount } from "@/lib/utils/format";
 
 export const metadata: Metadata = { title: "Magazine" };
 
-export default function BrowsePage() {
-  return (
-    <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Magazine în Iași</h1>
-      <p className="text-gray-500 mb-8">Alege un magazin și plasează comanda</p>
+export default async function BrowsePage() {
+  // Greeting personalisation (browse is public → user may be null).
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  let firstName = "";
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .maybeSingle();
+    firstName = profile?.full_name?.split(" ")[0] ?? "";
+  }
 
-      {/* TODO: fetch shops from Supabase */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-center text-gray-400">
-          Magazinele vor apărea aici
+  const shops = await getShops();
+  const favoriteIds = await getMyFavoriteShopIds();
+  const openCount = shops.filter((s) => s.isOpen ?? true).length;
+
+  return (
+    <Stack gap="xl">
+      {/* Welcome band */}
+      <Paper
+        radius="lg"
+        p="xl"
+        style={{
+          background:
+            "linear-gradient(120deg, var(--mantine-color-ink-9), var(--mantine-color-slate-7))",
+        }}
+      >
+        <div>
+          <Title order={2} c="white">
+            Bună{firstName ? `, ${firstName}` : ""} 👋
+          </Title>
+          <Text c="gray.4" mt={4}>
+            {roCount(openCount, "magazin", "magazine")} {openCount === 1 ? "este deschis" : "sunt deschise"} acum în Iași. De unde comanzi azi?
+          </Text>
         </div>
-      </div>
-    </div>
+      </Paper>
+
+      {/* Mobile search (header search is hidden below sm) */}
+      <MobileShopSearch />
+
+      {/* Shop grid — client-side, debounced search via the header input */}
+      <ShopResults shops={shops} favoriteIds={favoriteIds} />
+    </Stack>
   );
 }

@@ -1,24 +1,286 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Mantine provides the CSS reset and design tokens. Keep only app-level globals here. */
+html,
+body {
+  padding: 0;
+  margin: 0;
+  /* Guard against accidental horizontal overflow breaking the mobile viewport.
+     `clip` (not `hidden`) avoids turning body into a scroll container, which would
+     break the sticky headers. */
+  overflow-x: clip;
+  max-width: 100%;
+  /* Stop iOS from inflating font sizes on orientation change. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body {
+  /* Remove the grey tap-flash on touch + avoid the legacy 300ms tap delay on mobile. */
+  -webkit-tap-highlight-color: transparent;
+}
+button,
+a,
+[role="button"] {
+  touch-action: manipulation;
+}
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 20 14.3% 4.1%;
+:root {
+  /* Higher-contrast secondary text — Mantine's default dimmed (gray.6) reads too light. */
+  --mantine-color-dimmed: var(--mantine-color-mist-5);
+}
+
+/* Shared page background: drifting aurora blobs + a faint dot grid behind all content.
+   Fixed to the viewport and sits at z-index -1 inside an `isolation: isolate` root. */
+.page-bg {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+.page-bg__grid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    var(--mantine-color-default-border) 1.3px,
+    transparent 1.3px
+  );
+  background-size: 34px 34px;
+  /* Soft full-viewport vignette so dots fill the whole page and only fade at the edges. */
+  -webkit-mask-image: radial-gradient(
+    ellipse 120% 110% at 50% 40%,
+    #000 45%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 120% 110% at 50% 40%,
+    #000 45%,
+    transparent 100%
+  );
+  opacity: 0.28;
+}
+.hero-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.55;
+  will-change: transform;
+}
+.hero-blob--ember {
+  width: 460px;
+  height: 460px;
+  top: -120px;
+  right: -60px;
+  background: radial-gradient(circle, rgba(231, 112, 35, 0.55), transparent 70%);
+  animation: hero-drift-a 18s ease-in-out infinite;
+}
+.hero-blob--teal {
+  width: 420px;
+  height: 420px;
+  top: 35%;
+  left: -100px;
+  background: radial-gradient(circle, rgba(10, 132, 151, 0.45), transparent 70%);
+  animation: hero-drift-b 22s ease-in-out infinite;
+}
+.hero-blob--slate {
+  width: 360px;
+  height: 360px;
+  top: 55%;
+  left: 50%;
+  background: radial-gradient(circle, rgba(69, 100, 120, 0.32), transparent 70%);
+  animation: hero-drift-a 26s ease-in-out infinite reverse;
+}
+.hero-blob--ember2 {
+  width: 400px;
+  height: 400px;
+  bottom: -120px;
+  right: 5%;
+  background: radial-gradient(circle, rgba(231, 112, 35, 0.4), transparent 70%);
+  animation: hero-drift-b 24s ease-in-out infinite;
+}
+/* Light theme: a lighter, softer orange for the ember blobs — lower peak + a mid stop +
+   a far transparent stop so the falloff is gradual and blends smoothly into the canvas
+   (dark theme keeps the punchier original above). */
+[data-mantine-color-scheme="light"] .hero-blob--ember {
+  background: radial-gradient(
+    circle,
+    rgba(236, 143, 83, 0.42) 0%,
+    rgba(236, 143, 83, 0.2) 45%,
+    transparent 82%
+  );
+}
+[data-mantine-color-scheme="light"] .hero-blob--ember2 {
+  background: radial-gradient(
+    circle,
+    rgba(236, 143, 83, 0.32) 0%,
+    rgba(236, 143, 83, 0.14) 45%,
+    transparent 82%
+  );
+}
+@keyframes hero-drift-a {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
   }
-
-  * {
-    @apply border-gray-200;
+  50% {
+    transform: translate(-40px, 40px) scale(1.12);
   }
-
-  body {
-    @apply bg-white text-gray-900 antialiased;
+}
+@keyframes hero-drift-b {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(50px, -30px) scale(1.15);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-blob {
+    animation: none;
+  }
+}
+/* Mobile/tablet: animating a `blur(70px)` layer with `scale()` re-rasterizes the blur every
+   frame — the single biggest cause of jank + battery drain on phones. Make the aurora STATIC and
+   cheaper below the desktop breakpoint (drop the animation, un-promote the layers, lighten blur,
+   and hide the dot-grid layer entirely). The look is preserved; only the per-frame cost is gone. */
+@media (max-width: 1024px) {
+  .hero-blob {
+    animation: none;
+    will-change: auto;
+    filter: blur(55px);
+  }
+  .page-bg__grid {
+    display: none;
   }
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+/* Order queue rows: highlight on hover so it's clear the row is clickable (→ order details). */
+.order-row {
+  transition: background-color 120ms ease;
+}
+.order-row:hover {
+  background-color: var(--mantine-color-default-hover);
+}
+
+/* Catalog item cards: subtle lift + accent border on hover. */
+.catalog-card {
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+.catalog-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--mantine-shadow-md);
+  border-color: var(--mantine-color-brand-3);
+}
+
+/* Catalog card image thumb — scales + reveals a zoom overlay on hover so it reads as clickable
+   (opens the gallery lightbox). */
+.catalog-thumb {
+  position: relative;
+  overflow: hidden;
+  cursor: zoom-in;
+  flex-shrink: 0;
+}
+.catalog-thumb img {
+  transition: transform 0.2s ease;
+}
+.catalog-thumb:hover img,
+.catalog-thumb:focus-visible img {
+  transform: scale(1.08);
+}
+.catalog-thumb__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0);
+  opacity: 0;
+  transition:
+    opacity 0.16s ease,
+    background 0.16s ease;
+}
+.catalog-thumb:hover .catalog-thumb__overlay,
+.catalog-thumb:focus-visible .catalog-thumb__overlay {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+/* Brief pulse when an order line deep-links to its product card (#item-<id>). */
+.hash-flash {
+  animation: hash-flash 1.6s ease;
+}
+@keyframes hash-flash {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+    border-color: var(--mantine-color-default-border);
   }
+  20% {
+    box-shadow: 0 0 0 3px var(--mantine-color-brand-3);
+    border-color: var(--mantine-color-brand-5);
+  }
+}
+
+/* Landing "how it works" cards: lift + ember border on hover. */
+.hero-step-card {
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
+}
+.hero-step-card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--mantine-shadow-lg);
+  border-color: var(--mantine-color-brand-4);
+}
+
+/*
+ * Dark mode: keep every `light` variant (Badge / ThemeIcon / Avatar / Alert / light Button)
+ * using the SAME pale tint as light mode — pale `<color>-1` background + dark `<color>-7`
+ * foreground — instead of Mantine's muddy dark-tinted version. Design decision: tinted
+ * chips/icons read identically in both schemes. The `-1/-2/-7` shades are scheme-independent.
+ */
+[data-mantine-color-scheme="dark"] {
+  --mantine-color-brand-light: var(--mantine-color-brand-1);
+  --mantine-color-brand-light-hover: var(--mantine-color-brand-2);
+  --mantine-color-brand-light-color: var(--mantine-color-brand-7);
+  --mantine-color-slate-light: var(--mantine-color-slate-1);
+  --mantine-color-slate-light-hover: var(--mantine-color-slate-2);
+  --mantine-color-slate-light-color: var(--mantine-color-slate-7);
+  --mantine-color-ink-light: var(--mantine-color-ink-1);
+  --mantine-color-ink-light-hover: var(--mantine-color-ink-2);
+  --mantine-color-ink-light-color: var(--mantine-color-ink-7);
+  --mantine-color-teal-light: var(--mantine-color-teal-1);
+  --mantine-color-teal-light-hover: var(--mantine-color-teal-2);
+  --mantine-color-teal-light-color: var(--mantine-color-teal-7);
+  --mantine-color-cyan-light: var(--mantine-color-cyan-1);
+  --mantine-color-cyan-light-hover: var(--mantine-color-cyan-2);
+  --mantine-color-cyan-light-color: var(--mantine-color-cyan-7);
+  --mantine-color-mist-light: var(--mantine-color-mist-1);
+  --mantine-color-mist-light-hover: var(--mantine-color-mist-2);
+  --mantine-color-mist-light-color: var(--mantine-color-mist-7);
+  --mantine-color-stone-light: var(--mantine-color-stone-1);
+  --mantine-color-stone-light-hover: var(--mantine-color-stone-2);
+  --mantine-color-stone-light-color: var(--mantine-color-stone-7);
+  --mantine-color-red-light: var(--mantine-color-red-1);
+  --mantine-color-red-light-hover: var(--mantine-color-red-2);
+  --mantine-color-red-light-color: var(--mantine-color-red-7);
+  --mantine-color-green-light: var(--mantine-color-green-1);
+  --mantine-color-green-light-hover: var(--mantine-color-green-2);
+  --mantine-color-green-light-color: var(--mantine-color-green-7);
+  --mantine-color-yellow-light: var(--mantine-color-yellow-1);
+  --mantine-color-yellow-light-hover: var(--mantine-color-yellow-2);
+  --mantine-color-yellow-light-color: var(--mantine-color-yellow-8);
+  --mantine-color-blue-light: var(--mantine-color-blue-1);
+  --mantine-color-blue-light-hover: var(--mantine-color-blue-2);
+  --mantine-color-blue-light-color: var(--mantine-color-blue-7);
+  --mantine-color-grape-light: var(--mantine-color-grape-1);
+  --mantine-color-grape-light-hover: var(--mantine-color-grape-2);
+  --mantine-color-grape-light-color: var(--mantine-color-grape-7);
+  --mantine-color-gray-light: var(--mantine-color-gray-1);
+  --mantine-color-gray-light-hover: var(--mantine-color-gray-2);
+  --mantine-color-gray-light-color: var(--mantine-color-gray-7);
 }
